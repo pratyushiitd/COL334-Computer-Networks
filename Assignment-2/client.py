@@ -4,7 +4,7 @@ import sys
 import select
 import threading
 
-PORT = 9200
+PORT = 9114
 
 def send_to_server(socket_ctos):
     while True:
