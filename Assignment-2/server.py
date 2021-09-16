@@ -4,7 +4,7 @@ import select #System level IO Capabilities
 from _thread import *
 
 IP = '127.0.0.1'
-PORT = 9200
+PORT = 9114
 
 client_to_send = dict() 
 client_to_recv = dict() 
@@ -71,9 +71,15 @@ def parse_request(request):
     init_list = req_params[0].split(' ')
     if (len(init_list) != 2):
         return False
+    try:
+        len_message = int(req_params[1].split()[1])
+    except:
+        return False
     recipient = init_list[1]
     cont_length = req_params[1]
     message_to_send = req_params[2]
+    if (len_message != len(message_to_send) or cont_length.startswith('Content-length: ') == False):
+        return False
     return {'user': recipient, 'length': cont_length, 'message': message_to_send}
 
 def broad_cast(sender, req_params):
@@ -86,6 +92,7 @@ def broad_cast(sender, req_params):
             #     response = (client_to_recv[client].recv(1024))
             # response = response.decode('utf-8')
             # print(response)
+            print("RECEIVED {}".format(client))
     client_to_send[sender].sendall(str.encode('SENT ALL'))
     return
 def forward_request(sender, req_params):
@@ -112,6 +119,7 @@ def forward_request(sender, req_params):
             response = (client_to_recv[req_params['user']]).recv(1024)
         print(4)
         response = response.decode('utf-8')'''
+        print("RECEIVED {}".format(req_params['user']))
         client_to_send[sender].sendall(str.encode('SENT {}'.format(req_params['user'])))
         #print(response)
         return True
@@ -127,6 +135,8 @@ def client_thread(connection):
             req_params = parse_request(message)
             print(req_params)
             if (req_params == False):
+                del client_to_send[user]
+                del client_to_recv[user]
                 connection.sendall(str.encode('ERROR 103 Header incomplete\n\n'))
                 # print('hm5')
                 continue
