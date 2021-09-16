@@ -1,0 +1,9 @@
+Run instructions for trace_route.cpp
+
+To build, use:
+g++ -o main trace_route.cpp -std=c++11
+
+To run, use:
+./main domain_name
+
+domain_name can be destination IP address or public domain
