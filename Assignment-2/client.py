@@ -4,7 +4,7 @@ import sys
 import select
 import threading
 
-PORT = 9994
+PORT = 9200
 
 def send_to_server(socket_ctos):
     while True:
@@ -15,10 +15,13 @@ def send_to_server(socket_ctos):
                 continue
             ind = cmd.find(' ')
             recipient = cmd[1:ind]
-            message_to_send = cmd[ind+1:]
+            message_to_send = cmd[ind+1:-1]
             head = 'SEND {}\nContent-length: {}\n'.format(recipient, str(len(message_to_send)))
-            socket_ctos.sendall(str.encode(''.join([head, message_to_send])))
-            response = (socket_ctos.recv(1024)).decode('utf-8')
+            socket_ctos.sendall(str.encode(head+message_to_send))
+            response = socket_ctos.recv(1024)
+            while not response:
+                response = socket_ctos.recv(1024)
+            response = response.decode('utf-8')
             print(response)
 def parse_request(request):
     req_params = request.split('\n')
@@ -34,14 +37,17 @@ def parse_request(request):
 
 def recive_message(socket_stoc):
     while True:
-        response = (socket_stoc.recv(1024)).decode('utf-8')
+        response = (socket_stoc.recv(1024))
+        while not response:
+            response = (socket_stoc.recv(1024))
+        response = response.decode('utf-8')
         if (len(response) > 0 and response.startswith('FORWARD')):
             req_params = parse_request(response)
             if (req_params == False):
                 socket_stoc.sendall(str.encode('ERROR 103 Header Incomplete'))
                 continue
             print('{}: {}'.format(req_params['user'], req_params['message']))
-            socket_stoc.sendall(str.encode('RECEIVED {}'.format(req_params['user'])))
+            socket_stoc.sendall(str.encode('RECEIVED {}\n'.format(req_params['user'])))
 
 if __name__ == '__main__':
     if len(sys.argv) != 3:
@@ -71,7 +77,6 @@ if __name__ == '__main__':
     try:
         socket_ctos.connect((host_ip, PORT))
         socket_ctos.sendall(str.encode('REGISTER TOSEND {}'.format(username)))
-        print('Waiting for registration to occur')
         response = (socket_ctos.recv(1024)).decode('utf-8')
         print(response)
         if (response.startswith('REGISTERED TOSEND') == False):

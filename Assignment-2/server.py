@@ -4,13 +4,14 @@ import select #System level IO Capabilities
 from _thread import *
 
 IP = '127.0.0.1'
-PORT = 9994
+PORT = 9200
 
 client_to_send = dict() 
 client_to_recv = dict() 
 
 def check_valid_user(username):
     return username.isalnum()
+
 
 def register_client_util(username, client_socket, type):
     if (type == 0):
@@ -25,6 +26,7 @@ def register_client_util(username, client_socket, type):
         return True
     return False
 
+
 def register_client(connection):
     message = (connection.recv(1024)).decode('utf-8')
     user = None
@@ -33,34 +35,34 @@ def register_client(connection):
             params = message.split()
             if (len(params) != 3):
                 connection.sendall(str.encode('ERROR 100 Malformed username\n\n'))
-                return False
+                return None
             if (register_client_util(params[2], connection, 0)):
                 user = params[2]
                 if not check_valid_user(user):
                     connection.sendall(str.encode('ERROR 100 Malformed username\n\n'))
-                    return False
+                    return None
                 connection.sendall(str.encode('REGISTERED TOSEND {}'.format(user)))
                 return user
             else:
-                return False
+                return None
         elif (message.startswith('REGISTER TORECV ')):
             params = message.split()
             if (len(params) != 3):
                 connection.sendall(str.encode('ERROR 100 Malformed username\n\n'))
-                return False
+                return None
             if (register_client_util(params[2], connection, 1)):
                 user = params[2]
                 if not check_valid_user(user):
                     connection.sendall(str.encode('ERROR 100 Malformed username\n\n'))
-                    return False
+                    return None
                 connection.sendall(str.encode('REGISTERED TORECV {}'.format(user)))
                 return user
             else:
-                return False
+                return None
     else:
         connection.sendall(str.encode('ERROR 101 No user registered\n\n'))
-        return False
-    return False
+        return None
+    return None
 
 def parse_request(request):
     req_params = request.split('\n')
@@ -74,38 +76,62 @@ def parse_request(request):
     message_to_send = req_params[2]
     return {'user': recipient, 'length': cont_length, 'message': message_to_send}
 
+def broad_cast(sender, req_params):
+    for client in client_to_recv.keys():
+        if (client != sender):
+            head = 'FORWARD {}\n{}\n'.format(sender, req_params['length'])
+            client_to_recv[client].sendall(str.encode(head+req_params['message']))
+            # response = (client_to_recv[client].recv(1024))
+            # while not response:
+            #     response = (client_to_recv[client].recv(1024))
+            # response = response.decode('utf-8')
+            # print(response)
+    client_to_send[sender].sendall(str.encode('SENT ALL'))
+    return
 def forward_request(sender, req_params):
-    if (req_params['user'] not in client_to_recv.keys()) or (sender not in client_to_send.keys()):
-        print('hm2')
+    if sender not in client_to_send.keys():
         return False
     try:
-        print(req_params)
-        print('hm0', sender, req_params['length'])
+        if (req_params['user'] == 'ALL'):
+            broad_cast(sender, req_params)
+            return True
+        elif (req_params['user'] not in client_to_recv.keys()):
+            return False
         head = 'FORWARD {}\n{}\n'.format(sender, req_params['length'])
-        print(req_params['user'], head, req_params['message'])
         client_to_recv[req_params['user']].sendall(str.encode(head+req_params['message']))
-        print('hm1')
+        #print("SENT {}".format(req_params['user']))
+        # print(3)
+        # print(req_params['user'])
+        '''try:
+            response = (client_to_recv[req_params['user']]).recv(1024)
+            print(response)
+        except socket.error as err:
+            print ('HOLAAA %s' %(err))
+        print(10)
+        while not response:
+            response = (client_to_recv[req_params['user']]).recv(1024)
+        print(4)
+        response = response.decode('utf-8')'''
+        client_to_send[sender].sendall(str.encode('SENT {}'.format(req_params['user'])))
+        #print(response)
         return True
     except:
-        print('hm3')
         return False
 def client_thread(connection):
-    user = False
-    while not user:
+    user = None
+    while user == None:
         user = register_client(connection)
     while True:
         message = (connection.recv(1024)).decode('utf-8')
         if (message.startswith('SEND')):
             req_params = parse_request(message)
+            print(req_params)
             if (req_params == False):
                 connection.sendall(str.encode('ERROR 103 Header incomplete\n\n'))
-                print('hm5')
+                # print('hm5')
                 continue
-            if (forward_request(user, req_params)):
-                print('hm6')
-                connection.sendall(str.encode('SEND {}'.format(req_params['user'])))
-            else:
-                print('hm7')
+            ack = forward_request(user, req_params)
+            if (ack == False):
                 connection.sendall(str.encode('ERROR 102 Unable to send'))
 
 if __name__ == '__main__':
