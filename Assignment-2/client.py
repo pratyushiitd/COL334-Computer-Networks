@@ -4,7 +4,7 @@ import sys
 import select
 import threading
 
-PORT = 9114
+PORT = 8369
 
 def send_to_server(socket_ctos):
     while True:
@@ -23,6 +23,9 @@ def send_to_server(socket_ctos):
                 response = socket_ctos.recv(1024)
             response = response.decode('utf-8')
             print(response)
+            if (response.startswith('ERROR 103')):
+                socket_ctos.close()
+                sys.exit(1)
 def parse_request(request):
     req_params = request.split('\n')
     if (len(req_params) < 3):
@@ -41,6 +44,9 @@ def recive_message(socket_stoc):
         while not response:
             response = (socket_stoc.recv(1024))
         response = response.decode('utf-8')
+        if (response.startswith('ERROR 103')):
+            socket_stoc.close()
+            sys.exit(1)
         if (len(response) > 0 and response.startswith('FORWARD')):
             req_params = parse_request(response)
             if (req_params == False):
