@@ -4,7 +4,7 @@ import select #System level IO Capabilities
 from _thread import *
 
 IP = '127.0.0.1'
-PORT = 9114
+PORT = 8369
 
 client_to_send = dict() 
 client_to_recv = dict() 
@@ -113,7 +113,7 @@ def forward_request(sender, req_params):
             response = (client_to_recv[req_params['user']]).recv(1024)
             print(response)
         except socket.error as err:
-            print ('HOLAAA %s' %(err))
+            print ('Exiting with error %s' %(err))
         print(10)
         while not response:
             response = (client_to_recv[req_params['user']]).recv(1024)
@@ -135,9 +135,10 @@ def client_thread(connection):
             req_params = parse_request(message)
             print(req_params)
             if (req_params == False):
+                connection.sendall(str.encode('ERROR 103 Header incomplete\n\n'))
+                client_to_recv[user].sendall(str.encode('ERROR 103 Header incomplete\n\n'))
                 del client_to_send[user]
                 del client_to_recv[user]
-                connection.sendall(str.encode('ERROR 103 Header incomplete\n\n'))
                 # print('hm5')
                 continue
             ack = forward_request(user, req_params)
